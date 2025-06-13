@@ -31,7 +31,8 @@ describe('Amida Algorithm', () => {
 
   test('generateRoutes produces valid mapping', () => {
     const startItems = ['A', 'B', 'C']
-    const result = generateRoutes(startItems)
+    const goalItems = ['X', 'Y', 'Z']
+    const result = generateRoutes(startItems, goalItems)
     
     expect(result.lines.length).toBeGreaterThan(0)
     expect(result.routes.length).toBe(3)

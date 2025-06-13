@@ -24,7 +24,7 @@ export function AmidaCanvas({ startItems, goalItems, currentAnimatingIndex, auto
 
   useEffect(() => {
     if (startItems.length > 0 && goalItems.length > 0) {
-      const result = generateRoutes(startItems)
+      const result = generateRoutes(startItems, goalItems)
       setLines(result.lines)
     }
   }, [startItems, goalItems])

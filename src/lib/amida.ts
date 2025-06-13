@@ -6,9 +6,11 @@ export interface AmidaLine {
 export interface AmidaResult {
   lines: AmidaLine[]
   routes: number[]
+  shuffledStartItems: string[]
+  shuffledGoalItems: string[]
 }
 
-export function generateAmidaLines(count: number, ratio: number = 1.5): AmidaLine[] {
+export function generateAmidaLines(count: number, ratio: number = 4.5): AmidaLine[] {
   const horizontalLineCount = Math.ceil(count * ratio)
   const lines: AmidaLine[] = []
   const maxRow = count * 3
@@ -48,10 +50,21 @@ export function traceRoute(startIndex: number, lines: AmidaLine[]): number {
   return currentCol
 }
 
-export function generateRoutes(startItems: string[]): AmidaResult {
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
+
+export function generateRoutes(startItems: string[], goalItems: string[]): AmidaResult {
   const count = startItems.length
+  const shuffledStartItems = shuffleArray(startItems)
+  const shuffledGoalItems = shuffleArray(goalItems)
   const lines = generateAmidaLines(count)
-  const routes = startItems.map((_, index) => traceRoute(index, lines))
+  const routes = shuffledStartItems.map((_, index) => traceRoute(index, lines))
   
-  return { lines, routes }
+  return { lines, routes, shuffledStartItems, shuffledGoalItems }
 }
