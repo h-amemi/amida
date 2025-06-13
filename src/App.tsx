@@ -17,12 +17,20 @@ function App() {
     setStartItems([...startItems, item])
   }
 
+  const handleAddStartBulk = (items: string[]) => {
+    setStartItems([...startItems, ...items])
+  }
+
   const handleRemoveStart = (index: number) => {
     setStartItems(startItems.filter((_, i) => i !== index))
   }
 
   const handleAddGoal = (item: string) => {
     setGoalItems([...goalItems, item])
+  }
+
+  const handleAddGoalBulk = (items: string[]) => {
+    setGoalItems([...goalItems, ...items])
   }
 
   const handleRemoveGoal = (index: number) => {
@@ -62,6 +70,7 @@ function App() {
               title="Start Items"
               items={startItems}
               onAdd={handleAddStart}
+              onAddBulk={handleAddStartBulk}
               onRemove={handleRemoveStart}
             />
             
@@ -69,6 +78,7 @@ function App() {
               title="Goal Items"
               items={goalItems}
               onAdd={handleAddGoal}
+              onAddBulk={handleAddGoalBulk}
               onRemove={handleRemoveGoal}
             />
 
