@@ -5,11 +5,13 @@ import { generateRoutes, traceRoute, type AmidaLine } from '@/lib/amida'
 interface AmidaCanvasProps {
   startItems: string[]
   goalItems: string[]
-  selectedStart?: number
-  onComplete?: (result: number) => void
+  currentAnimatingIndex: number
+  autoStarted: boolean
+  onComplete?: (startIndex: number, result: number) => void
+  onAutoStarted?: () => void
 }
 
-export function AmidaCanvas({ startItems, goalItems, selectedStart, onComplete }: AmidaCanvasProps) {
+export function AmidaCanvas({ startItems, goalItems, currentAnimatingIndex, autoStarted, onComplete, onAutoStarted }: AmidaCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [lines, setLines] = useState<AmidaLine[]>([])
   const [isAnimating, setIsAnimating] = useState(false)
@@ -36,11 +38,24 @@ export function AmidaCanvas({ startItems, goalItems, selectedStart, onComplete }
     drawVerticalLines()
     drawHorizontalLines()
     drawLabels()
+  }, [lines])
 
-    if (selectedStart !== undefined) {
-      animateRoute(selectedStart)
+  // Auto-start animation when entering result screen
+  useEffect(() => {
+    if (!autoStarted && lines.length > 0 && startItems.length > 0) {
+      onAutoStarted?.()
+      setTimeout(() => {
+        animateRoute(0)
+      }, 500)
     }
-  }, [lines, selectedStart])
+  }, [autoStarted, lines, startItems])
+
+  // Handle animation changes
+  useEffect(() => {
+    if (autoStarted && currentAnimatingIndex < startItems.length) {
+      animateRoute(currentAnimatingIndex)
+    }
+  }, [currentAnimatingIndex, autoStarted])
 
   const drawVerticalLines = () => {
     if (!svgRef.current) return
@@ -122,72 +137,142 @@ export function AmidaCanvas({ startItems, goalItems, selectedStart, onComplete }
     setIsAnimating(true)
     const tl = gsap.timeline()
 
-    const verticalLines = svgRef.current.querySelectorAll('.vertical-line')
-    const horizontalLines = svgRef.current.querySelectorAll('.horizontal-line')
+    // Show all lines first if this is the first animation
+    if (startIndex === 0) {
+      const verticalLines = svgRef.current.querySelectorAll('.vertical-line')
+      const horizontalLines = svgRef.current.querySelectorAll('.horizontal-line')
 
-    tl.to(verticalLines, {
-      strokeDashoffset: 0,
-      duration: 1,
-      stagger: 0.1,
-      ease: 'power2.out'
-    })
+      tl.to(verticalLines, {
+        strokeDashoffset: 0,
+        duration: 1,
+        stagger: 0.1,
+        ease: 'power2.out'
+      })
 
-    tl.to(horizontalLines, {
-      strokeDashoffset: 0,
-      duration: 0.8,
-      stagger: 0.05,
-      ease: 'power2.out'
-    }, '-=0.5')
+      tl.to(horizontalLines, {
+        strokeDashoffset: 0,
+        duration: 0.8,
+        stagger: 0.05,
+        ease: 'power2.out'
+      }, '-=0.5')
+    }
 
-    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-    marker.setAttribute('r', '8')
-    marker.setAttribute('fill', 'hsl(var(--primary))')
-    marker.setAttribute('class', 'route-marker')
-    svgRef.current.appendChild(marker)
-
-    const path = createRoutePath(startIndex)
+    // Create colored path for this specific route
+    const routePath = createRoutePathElements(startIndex)
+    const delay = startIndex === 0 ? '+=0.5' : 0
     
-    tl.to(marker, {
-      motionPath: {
-        path: path,
-        autoRotate: false,
-      },
+    tl.to(routePath, {
+      strokeDashoffset: 0,
       duration: 2,
-      ease: 'none',
+      stagger: 0.1,
+      ease: 'power2.out',
       onComplete: () => {
         const result = traceRoute(startIndex, lines)
-        onComplete?.(result)
+        onComplete?.(startIndex, result)
         setIsAnimating(false)
       }
-    }, '+=0.5')
+    }, delay)
   }
 
-  const createRoutePath = (startIndex: number): string => {
+  const createRoutePathElements = (startIndex: number): SVGElement[] => {
+    if (!svgRef.current) return []
+
+    const pathElements: SVGElement[] = []
     let currentCol = startIndex
     
-    const startX = margin + startIndex * columnWidth
-    const startY = margin
+    const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6']
+    const color = colors[startIndex % colors.length]
     
-    let path = `M ${startX} ${startY}`
+    let currentY = margin
     
-    for (const line of lines) {
+    // Add vertical line from start
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
       const lineY = margin + line.row * rowHeight
       
-      path += ` L ${margin + currentCol * columnWidth} ${lineY}`
+      // Draw vertical line to this horizontal line
+      if (lineY > currentY) {
+        const vertLine = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+        vertLine.setAttribute('x1', (margin + currentCol * columnWidth).toString())
+        vertLine.setAttribute('y1', currentY.toString())
+        vertLine.setAttribute('x2', (margin + currentCol * columnWidth).toString())
+        vertLine.setAttribute('y2', lineY.toString())
+        vertLine.setAttribute('stroke', color)
+        vertLine.setAttribute('stroke-width', '4')
+        vertLine.setAttribute('class', `route-path-${startIndex}`)
+        
+        const pathLength = lineY - currentY
+        vertLine.style.strokeDasharray = pathLength.toString()
+        vertLine.style.strokeDashoffset = pathLength.toString()
+        
+        svgRef.current.appendChild(vertLine)
+        pathElements.push(vertLine)
+        currentY = lineY
+      }
       
+      // Check if we need to cross this horizontal line
       if (line.col === currentCol) {
+        // Draw horizontal line to the right
+        const horizLine = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+        horizLine.setAttribute('x1', (margin + currentCol * columnWidth).toString())
+        horizLine.setAttribute('y1', lineY.toString())
+        horizLine.setAttribute('x2', (margin + (currentCol + 1) * columnWidth).toString())
+        horizLine.setAttribute('y2', lineY.toString())
+        horizLine.setAttribute('stroke', color)
+        horizLine.setAttribute('stroke-width', '4')
+        horizLine.setAttribute('class', `route-path-${startIndex}`)
+        
+        const pathLength = columnWidth
+        horizLine.style.strokeDasharray = pathLength.toString()
+        horizLine.style.strokeDashoffset = pathLength.toString()
+        
+        svgRef.current.appendChild(horizLine)
+        pathElements.push(horizLine)
         currentCol = currentCol + 1
-        path += ` L ${margin + currentCol * columnWidth} ${lineY}`
       } else if (line.col === currentCol - 1) {
+        // Draw horizontal line to the left
+        const horizLine = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+        horizLine.setAttribute('x1', (margin + currentCol * columnWidth).toString())
+        horizLine.setAttribute('y1', lineY.toString())
+        horizLine.setAttribute('x2', (margin + (currentCol - 1) * columnWidth).toString())
+        horizLine.setAttribute('y2', lineY.toString())
+        horizLine.setAttribute('stroke', color)
+        horizLine.setAttribute('stroke-width', '4')
+        horizLine.setAttribute('class', `route-path-${startIndex}`)
+        
+        const pathLength = columnWidth
+        horizLine.style.strokeDasharray = pathLength.toString()
+        horizLine.style.strokeDashoffset = pathLength.toString()
+        
+        svgRef.current.appendChild(horizLine)
+        pathElements.push(horizLine)
         currentCol = currentCol - 1
-        path += ` L ${margin + currentCol * columnWidth} ${lineY}`
       }
     }
     
-    path += ` L ${margin + currentCol * columnWidth} ${height - margin}`
+    // Final vertical line to bottom
+    if (currentY < height - margin) {
+      const finalVertLine = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+      finalVertLine.setAttribute('x1', (margin + currentCol * columnWidth).toString())
+      finalVertLine.setAttribute('y1', currentY.toString())
+      finalVertLine.setAttribute('x2', (margin + currentCol * columnWidth).toString())
+      finalVertLine.setAttribute('y2', (height - margin).toString())
+      finalVertLine.setAttribute('stroke', color)
+      finalVertLine.setAttribute('stroke-width', '4')
+      finalVertLine.setAttribute('class', `route-path-${startIndex}`)
+      
+      const pathLength = (height - margin) - currentY
+      finalVertLine.style.strokeDasharray = pathLength.toString()
+      finalVertLine.style.strokeDashoffset = pathLength.toString()
+      
+      svgRef.current.appendChild(finalVertLine)
+      pathElements.push(finalVertLine)
+    }
     
-    return path
+    return pathElements
   }
+
 
   return (
     <div className="w-full flex justify-center">
